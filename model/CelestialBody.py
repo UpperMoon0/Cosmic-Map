@@ -1,13 +1,13 @@
-# model/CelestialBody.py
 from math import sin, cos
 
 
 class CelestialBody:
-    def __init__(self, loader, render, model_path, color, scale, parent=None, velocity=0, distance=0):
+    def __init__(self, loader, render, model_path, color, scale, name, parent=None, velocity=0, distance=0):
         self.model = loader.loadModel(model_path)
         self.model.setColor(color)
         self.model.setScale(scale)
         self.model.reparentTo(render)
+        self.name = name
         self.parent = parent
         self.velocity = velocity
         self.distance = distance
