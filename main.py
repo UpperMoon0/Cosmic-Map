@@ -1,5 +1,5 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import LColor, LineSegs, ClockObject
+from panda3d.core import LColor, LineSegs, ClockObject, Vec3
 from direct.gui.DirectGui import DirectButton, DirectFrame
 from math import sin, cos, pi
 
@@ -19,6 +19,17 @@ class MyApp(ShowBase):
         # Create Moon
         self.moon = CelestialBody(self.loader, self.render, "models/misc/sphere", LColor(0.5, 0.5, 0.5, 1), 0.27,
                                   "Moon", parent=self.earth, velocity=0.5, distance=30.1)
+
+        # Create Mars
+        self.mars = CelestialBody(self.loader, self.render, "models/misc/sphere", LColor(1, 0, 0, 1), 0.531, "Mars", position=(0, 0, 50))
+
+        # Create Phobos
+        self.phobos = CelestialBody(self.loader, self.render, "models/misc/sphere", LColor(0.5, 0.5, 0.5, 1), 0.0018,
+                                    "Phobos", parent=self.mars, velocity=2.0, distance=1.47)
+
+        # Create Deimos
+        self.deimos = CelestialBody(self.loader, self.render, "models/misc/sphere", LColor(0.5, 0.5, 0.5, 1), 0.001,
+                                    "Deimos", parent=self.mars, velocity=1.0, distance=3.68)
 
         self.cam.setPos(0, -30, 0)
         self.cam.lookAt(self.earth.model)
@@ -53,19 +64,25 @@ class MyApp(ShowBase):
         # Attribute to keep track of the currently focused object
         self.focused_object = None
 
-        # Add a task to update the camera position
-        self.taskMgr.add(self.update_camera_position, "update_camera_position")
+        # Set the default camera distance (no zoom change)
+        self.camera_distance = 30  # Set an appropriate value for the initial camera distance
 
     def create_body_buttons(self):
-        bodies = [self.earth, self.moon]
+        bodies = [self.earth, self.moon, self.mars, self.phobos, self.deimos]
         for i, body in enumerate(bodies):
             DirectButton(text=body.name, scale=0.05, command=self.focus_on_body, extraArgs=[body], parent=self.menu_frame, pos=(0, 0, -0.1 * i))
 
     def update_positions(self, task):
         self.moon.update_position(task.time)
+        self.phobos.update_position(task.time)
+        self.deimos.update_position(task.time)
 
         if self.show_orbit:
             self.draw_orbit_path()
+
+        # Update the camera position if a body is focused
+        if self.focused_object:
+            self.update_camera_position()
 
         return task.cont
 
@@ -78,14 +95,25 @@ class MyApp(ShowBase):
         self.orbit_path.node().removeAllChildren()
         segs = LineSegs()
         segs.setColor(1, 1, 1, 1)  # Set the color to white
-        y = self.earth.model.getY()  # Get the y coordinate of the Earth
-        distance = self.moon.distance  # Get the distance of the Moon from the Earth
-        segs.moveTo(distance * cos(0), y, distance * sin(0))  # Start at the first point
-        for i in range(1, 361):
-            angle = i * (pi / 180)
-            x = distance * cos(angle)
-            z = distance * sin(angle)
-            segs.drawTo(x, y, z)
+
+        bodies = [self.moon, self.phobos, self.deimos]
+        for body in bodies:
+            if body.parent:
+                parent = body.parent
+                # Get the position of the parent in 3D space
+                parent_pos = parent.model.getPos(self.render)
+                distance = body.distance  # Get the distance of the body from its parent
+
+                # Start the orbit path at the correct distance from the parent body (Mars in this case)
+                segs.moveTo(parent_pos[0] + distance, parent_pos[1], parent_pos[2])
+
+                # Draw the orbit path as a circle around the parent body
+                for i in range(1, 361):
+                    angle = i * (pi / 180)
+                    x = distance * cos(angle)
+                    z = distance * sin(angle)
+                    segs.drawTo(parent_pos[0] + x, parent_pos[1], parent_pos[2] + z)
+
         self.orbit_path.attachNewNode(segs.create())
 
     def toggle_menu(self):
@@ -96,11 +124,22 @@ class MyApp(ShowBase):
 
     def focus_on_body(self, body):
         self.focused_object = body
+        self.update_camera_position()
 
-    def update_camera_position(self, task):
+    def update_camera_position(self):
+        """Keeps the camera at a constant distance from the focused object and makes it follow."""
         if self.focused_object:
+            body_pos = self.focused_object.model.getPos(self.render)
+
+            # Get the direction from the camera to the body
+            direction = (body_pos - self.cam.getPos()).normalized()
+
+            # Calculate the new camera position, maintaining the distance
+            new_cam_pos = body_pos - direction * self.camera_distance
+            self.cam.setPos(new_cam_pos)
+
+            # Ensure the camera always looks at the body
             self.cam.lookAt(self.focused_object.model)
-        return task.cont
 
 
 app = MyApp()
