@@ -1,2 +1,5 @@
 
 /env
+/.venv
+*.pyc
+/model/__pycache__
